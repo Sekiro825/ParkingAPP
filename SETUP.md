@@ -145,4 +145,119 @@ supabase db push
 supabase status
 ```
 
+---
+
+## Edge Functions Setup (Cloud or Local)
+
+Edge Functions back API endpoints like reservations create/cancel and device telemetry ingest.
+
+### Prerequisites
+
+- Supabase CLI logged in: `supabase login`
+- Linked project: `supabase link --project-ref <your-project-ref>` (for cloud)
+
+### 1) Deploy existing `reservations` function
+
+The repo includes `supabase/functions/reservations/index.ts`.
+
+Deploy to cloud:
+
+```bash
+supabase functions deploy reservations --no-verify-jwt
+```
+
+Note: We pass the end-user JWT from the app via `Authorization: Bearer <access_token>` and verify it in code, so `--no-verify-jwt` is acceptable here. If you prefer Supabase to enforce JWT verification at the gateway, omit `--no-verify-jwt` and adapt the function accordingly.
+
+Test (replace URL/keys):
+
+```bash
+curl -i \
+  -H "Authorization: Bearer <user-access-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"slot_id":"<slot-uuid>","expires_in_minutes":15}' \
+  https://<project-ref>.supabase.co/functions/v1/reservations/create
+```
+
+### 2) Create and deploy `devices/ingest` (ESP32 telemetry)
+
+Create the function directory:
+
+```bash
+mkdir -p supabase/functions/devices-ingest
+```
+
+Implement `index.ts` to:
+
+- Accept `{ device_id, api_key, event_type, is_occupied, raw }`
+- Verify key with SQL or RPC (e.g., compare hash) using service role key
+- Insert into `public.device_events`
+- Return 200 on success
+
+Deploy:
+
+```bash
+supabase functions deploy devices-ingest
+```
+
+### 3) Create and deploy `notifications/worker`
+
+This worker reads unsent rows from `public.notifications`, resolves Expo push tokens from `public.user_push_tokens`, sends notifications, and sets `sent_at`.
+
+```bash
+mkdir -p supabase/functions/notifications-worker
+supabase functions deploy notifications-worker
+```
+
+Run locally for development:
+
+```bash
+supabase functions serve notifications-worker
+```
+
+### 4) Schedule `cron/expire-reservations`
+
+Create a scheduled function (Supabase Scheduled Functions) that calls the SQL RPC `expire_reservations` every minute or as needed.
+
+```bash
+mkdir -p supabase/functions/cron-expire-reservations
+supabase functions deploy cron-expire-reservations
+```
+
+Then configure a schedule in the Supabase Dashboard → Edge Functions → Scheduled.
+
+### 5) CORS and headers
+
+All functions should respond to `OPTIONS` and set CORS headers, e.g.:
+
+```ts
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
+};
+```
+
+### 6) App configuration (Expo)
+
+- The app already calls the `reservations` function:
+  - Create: `${EXPO_PUBLIC_SUPABASE_URL}/functions/v1/reservations/create`
+  - Cancel: `${EXPO_PUBLIC_SUPABASE_URL}/functions/v1/reservations/cancel/<id>`
+- Ensure the user `access_token` is forwarded via the `Authorization` header.
+
+### 7) Environment variables
+
+- Expo: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- Edge Functions (if needed): project URL/keys (secure in Supabase Secrets) and any third-party API keys (e.g., Expo push service if applicable)
+
+For local development, use:
+
+```bash
+supabase functions serve <name> --env-file supabase/.env
+```
+
+### 8) Realtime
+
+Make sure the tables you subscribe to are included in the `supabase_realtime` publication. See `DATABASE.md` for adding `public.slots`/`public.reservations`/`public.devices`, or ensure your existing `parking_slots`/`reservations`/`devices` tables are added similarly in your migrations.
+
+
 

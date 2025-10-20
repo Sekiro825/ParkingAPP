@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/lib/database.types';
 import { MapPin, Search } from 'lucide-react-native';
+import { readJson, writeJson } from '@/lib/storage';
 
 type ParkingSlot = Database['public']['Tables']['parking_slots']['Row'];
 
@@ -13,9 +14,19 @@ export default function DriverHome() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const router = useRouter();
+  const CACHE_KEY = 'cache:parking_slots';
 
   useEffect(() => {
-    fetchSlots();
+    // Load cached data first for instant UI
+    (async () => {
+      const cached = await readJson<ParkingSlot[]>(CACHE_KEY, []);
+      if (cached.length > 0) {
+        setSlots(cached);
+        setFilteredSlots(cached);
+        setLoading(false);
+      }
+      fetchSlots();
+    })();
 
     const channel = supabase
       .channel('parking_slots_changes')
@@ -60,6 +71,7 @@ export default function DriverHome() {
       if (error) throw error;
       setSlots(data || []);
       setFilteredSlots(data || []);
+      await writeJson(CACHE_KEY, data || []);
     } catch (error) {
       console.error('Error fetching slots:', error);
     } finally {
