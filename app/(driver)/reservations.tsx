@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Database } from '@/lib/database.types';
 import { Clock, MapPin, X } from 'lucide-react-native';
+import { readJson, writeJson } from '@/lib/storage';
 
 type Reservation = Database['public']['Tables']['reservations']['Row'] & {
   parking_slots?: Database['public']['Tables']['parking_slots']['Row'];
@@ -14,9 +15,17 @@ export default function Reservations() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const { user } = useAuth();
+  const CACHE_KEY = user ? `cache:reservations:${user.id}` : 'cache:reservations:anon';
 
   useEffect(() => {
-    fetchReservations();
+    (async () => {
+      const cached = await readJson<Reservation[]>(CACHE_KEY, []);
+      if (cached.length > 0) {
+        setReservations(cached);
+        setLoading(false);
+      }
+      fetchReservations();
+    })();
 
     const channel = supabase
       .channel('reservations_changes')
@@ -51,6 +60,7 @@ export default function Reservations() {
 
       if (error) throw error;
       setReservations(data || []);
+      await writeJson(CACHE_KEY, data || []);
     } catch (error) {
       console.error('Error fetching reservations:', error);
     } finally {
