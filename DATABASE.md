@@ -48,17 +48,6 @@ language sql stable
 as $$
   select auth.uid();
 $$;
-
--- Helper: is the caller an admin? Uses profiles.role
-create or replace function public.is_admin()
-returns boolean
-language sql stable security definer set search_path = public
-as $$
-  select exists (
-    select 1 from public.profiles p
-    where p.user_id = auth.uid() and p.role = 'admin'
-  );
-$$;
 ```
 
 ---
@@ -102,6 +91,17 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 alter table public.profiles enable row level security;
+
+-- Helper: is the caller an admin? Uses profiles.role
+create or replace function public.is_admin()
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select exists (
+    select 1 from public.profiles p
+    where p.user_id = auth.uid() and p.role = 'admin'
+  );
+$$;
 
 -- Policies: users can read their own profile, admins can read all
 create policy if not exists profiles_select_self
