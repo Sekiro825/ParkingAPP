@@ -104,22 +104,46 @@ as $$
 $$;
 
 -- Policies: users can read their own profile, admins can read all
-create policy if not exists profiles_select_self
-on public.profiles for select
-to authenticated
-using (user_id = auth.uid());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'profiles_select_self' AND polrelid = 'public.profiles'::regclass
+  ) THEN
+    CREATE POLICY profiles_select_self
+      ON public.profiles FOR SELECT
+      TO authenticated
+      USING (user_id = auth.uid());
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 
-create policy if not exists profiles_select_admin
-on public.profiles for select
-to authenticated
-using (public.is_admin());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'profiles_select_admin' AND polrelid = 'public.profiles'::regclass
+  ) THEN
+    CREATE POLICY profiles_select_admin
+      ON public.profiles FOR SELECT
+      TO authenticated
+      USING (public.is_admin());
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 
 -- Updates: only admins (or service role) can update profiles
-create policy if not exists profiles_update_admin
-on public.profiles for update
-to authenticated
-using (public.is_admin())
-with check (public.is_admin());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'profiles_update_admin' AND polrelid = 'public.profiles'::regclass
+  ) THEN
+    CREATE POLICY profiles_update_admin
+      ON public.profiles FOR UPDATE
+      TO authenticated
+      USING (public.is_admin())
+      WITH CHECK (public.is_admin());
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 ```
 
 ---
@@ -138,20 +162,44 @@ create table if not exists public.user_push_tokens (
 alter table public.user_push_tokens enable row level security;
 
 -- Owners manage their tokens
-create policy if not exists upt_select_own
-on public.user_push_tokens for select
-to authenticated
-using (user_id = auth.uid());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'upt_select_own' AND polrelid = 'public.user_push_tokens'::regclass
+  ) THEN
+    CREATE POLICY upt_select_own
+      ON public.user_push_tokens FOR SELECT
+      TO authenticated
+      USING (user_id = auth.uid());
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 
-create policy if not exists upt_insert_own
-on public.user_push_tokens for insert
-to authenticated
-with check (user_id = auth.uid());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'upt_insert_own' AND polrelid = 'public.user_push_tokens'::regclass
+  ) THEN
+    CREATE POLICY upt_insert_own
+      ON public.user_push_tokens FOR INSERT
+      TO authenticated
+      WITH CHECK (user_id = auth.uid());
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 
-create policy if not exists upt_delete_own
-on public.user_push_tokens for delete
-to authenticated
-using (user_id = auth.uid());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'upt_delete_own' AND polrelid = 'public.user_push_tokens'::regclass
+  ) THEN
+    CREATE POLICY upt_delete_own
+      ON public.user_push_tokens FOR DELETE
+      TO authenticated
+      USING (user_id = auth.uid());
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 ```
 
 ---
@@ -169,17 +217,33 @@ create table if not exists public.zones (
 alter table public.zones enable row level security;
 
 -- Read: drivers and admins can view zones
-create policy if not exists zones_select_all
-on public.zones for select
-to authenticated
-using (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'zones_select_all' AND polrelid = 'public.zones'::regclass
+  ) THEN
+    CREATE POLICY zones_select_all
+      ON public.zones FOR SELECT
+      TO authenticated
+      USING (true);
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 
 -- Write: only admins
-create policy if not exists zones_write_admin
-on public.zones for all
-to authenticated
-using (public.is_admin())
-with check (public.is_admin());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'zones_write_admin' AND polrelid = 'public.zones'::regclass
+  ) THEN
+    CREATE POLICY zones_write_admin
+      ON public.zones FOR ALL
+      TO authenticated
+      USING (public.is_admin())
+      WITH CHECK (public.is_admin());
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 ```
 
 ---
@@ -204,17 +268,33 @@ for each row execute function public.touch_updated_at();
 alter table public.devices enable row level security;
 
 -- Read devices: admins only
-create policy if not exists devices_select_admin
-on public.devices for select
-to authenticated
-using (public.is_admin());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'devices_select_admin' AND polrelid = 'public.devices'::regclass
+  ) THEN
+    CREATE POLICY devices_select_admin
+      ON public.devices FOR SELECT
+      TO authenticated
+      USING (public.is_admin());
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 
 -- Write devices: admins only
-create policy if not exists devices_write_admin
-on public.devices for all
-to authenticated
-using (public.is_admin())
-with check (public.is_admin());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'devices_write_admin' AND polrelid = 'public.devices'::regclass
+  ) THEN
+    CREATE POLICY devices_write_admin
+      ON public.devices FOR ALL
+      TO authenticated
+      USING (public.is_admin())
+      WITH CHECK (public.is_admin());
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 
 -- Register/rotate API key for a device. Returns plaintext once.
 create or replace function public.device_generate_api_key(p_device_id uuid)
@@ -262,10 +342,18 @@ create table if not exists public.device_events (
 alter table public.device_events enable row level security;
 
 -- Only admins/service-role read telemetry; no client writes directly
-create policy if not exists device_events_select_admin
-on public.device_events for select
-to authenticated
-using (public.is_admin());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'device_events_select_admin' AND polrelid = 'public.device_events'::regclass
+  ) THEN
+    CREATE POLICY device_events_select_admin
+      ON public.device_events FOR SELECT
+      TO authenticated
+      USING (public.is_admin());
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 ```
 
 ---
@@ -290,17 +378,33 @@ for each row execute function public.touch_updated_at();
 alter table public.slots enable row level security;
 
 -- Read slots: all authenticated users (drivers + admins)
-create policy if not exists slots_select_all
-on public.slots for select
-to authenticated
-using (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'slots_select_all' AND polrelid = 'public.slots'::regclass
+  ) THEN
+    CREATE POLICY slots_select_all
+      ON public.slots FOR SELECT
+      TO authenticated
+      USING (true);
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 
 -- Write slots: admins only
-create policy if not exists slots_write_admin
-on public.slots for all
-to authenticated
-using (public.is_admin())
-with check (public.is_admin());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'slots_write_admin' AND polrelid = 'public.slots'::regclass
+  ) THEN
+    CREATE POLICY slots_write_admin
+      ON public.slots FOR ALL
+      TO authenticated
+      USING (public.is_admin())
+      WITH CHECK (public.is_admin());
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 ```
 
 ---
@@ -331,22 +435,46 @@ where status in ('pending','active');
 alter table public.reservations enable row level security;
 
 -- Read: drivers read their own; admins read all
-create policy if not exists reservations_select_own
-on public.reservations for select
-to authenticated
-using (user_id = auth.uid());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'reservations_select_own' AND polrelid = 'public.reservations'::regclass
+  ) THEN
+    CREATE POLICY reservations_select_own
+      ON public.reservations FOR SELECT
+      TO authenticated
+      USING (user_id = auth.uid());
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 
-create policy if not exists reservations_select_admin
-on public.reservations for select
-to authenticated
-using (public.is_admin());
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'reservations_select_admin' AND polrelid = 'public.reservations'::regclass
+  ) THEN
+    CREATE POLICY reservations_select_admin
+      ON public.reservations FOR SELECT
+      TO authenticated
+      USING (public.is_admin());
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 
 -- Inserts/updates via RPC only; block direct writes from clients
-create policy if not exists reservations_block_client_writes
-on public.reservations for all
-to authenticated
-using (false)
-with check (false);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'reservations_block_client_writes' AND polrelid = 'public.reservations'::regclass
+  ) THEN
+    CREATE POLICY reservations_block_client_writes
+      ON public.reservations FOR ALL
+      TO authenticated
+      USING (false)
+      WITH CHECK (false);
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 ```
 
 ---
@@ -505,11 +633,19 @@ create table if not exists public.notifications (
 alter table public.notifications enable row level security;
 
 -- Only service role (Edge Function) should access this table; block clients
-create policy if not exists notifications_block_all
-on public.notifications for all
-to authenticated
-using (false)
-with check (false);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy WHERE polname = 'notifications_block_all' AND polrelid = 'public.notifications'::regclass
+  ) THEN
+    CREATE POLICY notifications_block_all
+      ON public.notifications FOR ALL
+      TO authenticated
+      USING (false)
+      WITH CHECK (false);
+  END IF;
+END
+$$ LANGUAGE plpgsql;
 
 -- Enqueue a notification when a reservation is created or expired/cancelled
 create or replace function public.enqueue_reservation_notification()
