@@ -105,6 +105,21 @@ If your project does not have it, run this once in the SQL editor before pushing
 
 - `profiles.id` references `auth.users(id)`. This requires Supabase Auth (enabled by default). Do not drop or rename `auth.users`.
 
+### Expo env fallback (app.json)
+
+If you prefer not to use shell envs, add to `app.json` under `expo.extra` and restart the dev server:
+
+```json
+{
+  "expo": {
+    "extra": {
+      "supabaseUrl": "https://<project-ref>.supabase.co",
+      "supabaseAnonKey": "<your-anon-key>"
+    }
+  }
+}
+```
+
 ---
 
 ## Troubleshooting
